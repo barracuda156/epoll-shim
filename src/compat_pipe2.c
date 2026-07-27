@@ -7,6 +7,20 @@
 
 #include "wrap.h"
 
+/*
+ * On pre-10.7 Darwin SDKs there is no O_CLOEXEC (the open(2) flag
+ * arrived in Lion); MacPorts legacy-support defines it to 0 so that
+ * code compiles, which makes "flags & O_CLOEXEC" dead code. Every
+ * caller of this shim passes O_CLOEXEC, so treat a zero O_CLOEXEC
+ * as always requested -- otherwise the shim's self-pipes leak into
+ * every child process spawned by the application.
+ */
+#if defined(__APPLE__) && O_CLOEXEC == 0
+#define CLOEXEC_REQUESTED(flags) 1
+#else
+#define CLOEXEC_REQUESTED(flags) (((flags) & O_CLOEXEC) != 0)
+#endif
+
 static errno_t
 compat_pipe2_impl(int pipefd[2], int flags)
 {
@@ -34,7 +48,7 @@ compat_pipe2_impl(int pipefd[2], int flags)
 			}
 		}
 
-		if (flags & O_CLOEXEC) {
+		if (CLOEXEC_REQUESTED(flags)) {
 			if ((r = fcntl(p[0], F_GETFD, 0)) < 0 ||
 			    fcntl(p[0], F_SETFD, r | FD_CLOEXEC) < 0 ||
 			    (r = fcntl(p[1], F_GETFD, 0)) < 0 ||

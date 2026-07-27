@@ -14,6 +14,23 @@
 #include "errno_return.h"
 #include "wrap.h"
 
+/*
+ * On pre-10.7 Darwin SDKs there is no O_CLOEXEC (the open(2) flag
+ * arrived in Lion); MacPorts legacy-support defines it to 0 so that
+ * code compiles, which makes "flags & O_CLOEXEC" dead code. Worse,
+ * the Apple else-branch below would then *always* run and strip
+ * FD_CLOEXEC. All emulated fds (epollfd/timerfd/eventfd/signalfd)
+ * are created through kqueue1(), and their callers pass *_CLOEXEC
+ * (aliases of O_CLOEXEC), so treat a zero O_CLOEXEC as always
+ * requested -- otherwise every one of those fds leaks into every
+ * child process spawned by the application.
+ */
+#if defined(__APPLE__) && O_CLOEXEC == 0
+#define CLOEXEC_REQUESTED(flags) 1
+#else
+#define CLOEXEC_REQUESTED(flags) (((flags) & O_CLOEXEC) != 0)
+#endif
+
 static errno_t
 compat_kqueue1_impl(int *fd_out, int flags)
 {
@@ -31,7 +48,7 @@ compat_kqueue1_impl(int *fd_out, int flags)
 	{
 		int r;
 
-		if (flags & O_CLOEXEC) {
+		if (CLOEXEC_REQUESTED(flags)) {
 			if ((r = real_fcntl(fd, F_GETFD)) < 0 ||
 			    real_fcntl(fd, F_SETFD, r | FD_CLOEXEC) < 0) {
 				ec = errno;
