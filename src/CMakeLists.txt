@@ -115,6 +115,7 @@ target_link_libraries(
           $<BUILD_INTERFACE:compat_enable_ppoll>
           $<BUILD_INTERFACE:compat_enable_itimerspec>
           $<BUILD_INTERFACE:compat_enable_sigops>
+          $<BUILD_INTERFACE:compat_enable_pipe2>
           $<BUILD_INTERFACE:rwlock>
           $<BUILD_INTERFACE:wrap>)
 if(HAVE_TIMERFD)
