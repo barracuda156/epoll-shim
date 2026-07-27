@@ -994,7 +994,19 @@ epollfd_ctx__register_events(EpollFDCtx *epollfd, int kq,
 
 	/* Check for fds that only support poll. */
 	if (((fd2_node->node_type == NODE_TYPE_OTHER &&
-		 kev[0].data == ENODEV) ||
+		 (kev[0].data == ENODEV
+#ifdef __APPLE__
+		     /*
+		      * Old Darwin kqueues reject pty masters and
+		      * various other character devices with EINVAL
+		      * (10.6 up to ~10.8) or ENOTSUP (10.5) rather
+		      * than ENODEV. Without this, terminal emulators
+		      * cannot monitor their ptmx: epoll_ctl fails and
+		      * input/output is never processed.
+		      */
+		     || kev[0].data == EINVAL || kev[0].data == ENOTSUP
+#endif
+		     )) ||
 		fd2_node->node_type == NODE_TYPE_POLL)) {
 
 		assert((fd2_node->events & /**/
