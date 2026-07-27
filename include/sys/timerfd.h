@@ -21,11 +21,20 @@ extern "C" {
  * it here. Only defined when the build has actually detected the
  * struct is missing (see CMakeLists.txt's HAVE_TIMERFD/APPLE check),
  * to avoid ever conflicting with a real system definition.
+ *
+ * Guarded separately from src/compat_itimerspec.h's copy of the same
+ * definition (which epoll-shim's own build force-includes into every
+ * translation unit compiled for the library, this header included),
+ * so whichever of the two is seen first in a given file wins and the
+ * second is a no-op instead of a redefinition error.
  */
+#ifndef EPOLL_SHIM_ITIMERSPEC_DEFINED_
+#define EPOLL_SHIM_ITIMERSPEC_DEFINED_
 struct itimerspec {
 	struct timespec it_interval;
 	struct timespec it_value;
 };
+#endif
 #else
 struct itimerspec;
 #endif
