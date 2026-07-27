@@ -121,6 +121,19 @@ if(HAVE_TIMERFD)
   target_compile_definitions(epoll-shim PRIVATE HAVE_TIMERFD)
 endif()
 target_compile_definitions(epoll-shim PRIVATE EPOLL_SHIM_DISABLE_WRAPPER_MACROS)
+
+# struct itimerspec is missing from the host libc's <time.h> under the
+# same condition compat_itimerspec.c/.h are compiled in (see
+# add_compat_target(itimerspec "APPLE") above). Consumers including
+# <sys/timerfd.h> need COMPAT_ENABLE_ITIMERSPEC defined too, via
+# pkg-config Cflags, or they only see a forward declaration.
+set(EPOLL_SHIM_EXTRA_PC_CFLAGS "")
+if(NOT HAVE_TIMERFD AND APPLE)
+  set(EPOLL_SHIM_EXTRA_PC_CFLAGS "-DCOMPAT_ENABLE_ITIMERSPEC")
+endif()
+set(EPOLL_SHIM_EXTRA_PC_CFLAGS
+    "${EPOLL_SHIM_EXTRA_PC_CFLAGS}"
+    PARENT_SCOPE)
 target_include_directories(
   epoll-shim
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>

@@ -9,4 +9,4 @@ Description: Small epoll implementation using kqueue
 Version: 
 Libs: -L${libdir} -lepoll-shim
 Libs.private: -pthread -lrt
-Cflags: -I${includedir}/libepoll-shim
+Cflags: -I${includedir}/libepoll-shim @EPOLL_SHIM_EXTRA_PC_CFLAGS@
