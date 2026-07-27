@@ -11,4 +11,8 @@ int compat_ppoll(struct pollfd fds[], nfds_t nfds,
 #define ppoll compat_ppoll
 #endif
 
+/* poll() emulated over select(); see the comment in compat_ppoll.c.
+ * Only built on platforms that build compat_ppoll.c (i.e. Apple). */
+int compat_poll_select(struct pollfd fds[], nfds_t nfds, int timeout_ms);
+
 #endif

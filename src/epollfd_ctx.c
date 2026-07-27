@@ -23,6 +23,21 @@
 
 #include "wrap.h"
 
+/*
+ * Darwin's poll() (up to at least 10.8) misreports valid tty/pty and
+ * some other character-device fds as POLLNVAL -- precisely the fds
+ * that end up as NODE_TYPE_POLL here. Probe poll-only fds through the
+ * select()-based emulation instead, so they don't get wrongly dropped
+ * from the interest set by the POLLNVAL cleanup in
+ * epollfd_ctx_wait().
+ */
+#ifdef __APPLE__
+#include "compat_ppoll.h"
+#define poll_only_fds_poll(fds, nfds) compat_poll_select((fds), (nfds), 0)
+#else
+#define poll_only_fds_poll(fds, nfds) real_poll((fds), (nfds), 0)
+#endif
+
 static RegisteredFDsNode *
 registered_fds_node_create(int fd)
 {
@@ -309,7 +324,8 @@ registered_fds_node_feed_event(RegisteredFDsNode *fd2_node, int kq,
 			.events = (short)fd2_node->events,
 		};
 
-		revents = real_poll(&pfd, 1, 0) < 0 ? EPOLLERR : pfd.revents;
+		revents = poll_only_fds_poll(&pfd, 1) < 0 ? EPOLLERR :
+		    pfd.revents;
 
 		fd2_node->revents = revents & POLLNVAL ? 0 : (uint32_t)revents;
 		assert(!(fd2_node->revents &
@@ -1344,8 +1360,8 @@ epollfd_ctx_wait(EpollFDCtx *epollfd, int kq, struct epoll_event *ev, int cnt,
 
 	epollfd_ctx_fill_pollfds(epollfd, kq, epollfd->pfds);
 
-	int n = real_poll(epollfd->pfds, /**/
-	    (nfds_t)(1 + epollfd->poll_fds_size), 0);
+	int n = poll_only_fds_poll(epollfd->pfds, /**/
+	    (nfds_t)(1 + epollfd->poll_fds_size));
 	if (n < 0) {
 		return errno;
 	}

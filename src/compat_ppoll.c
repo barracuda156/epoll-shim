@@ -3,14 +3,106 @@
 #include <sys/types.h>
 
 #include <sys/event.h>
+#include <sys/select.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <unistd.h>
 
 #include "wrap.h"
+
+/*
+ * poll() on Darwin (up to at least 10.8) does not support tty/pty fds
+ * and various other character devices: it reports POLLNVAL for
+ * a valid, open pty master. select() handles all of them fine, so
+ * emulate poll() over select() here. This is used both as the core of
+ * compat_ppoll() below and by epollfd_ctx.c's poll-only-fd probes --
+ * the POLLNVAL misreport would otherwise get poll-only fds (e.g.
+ * a terminal emulator's ptmx) silently dropped from the interest set.
+ */
+int
+compat_poll_select(struct pollfd fds[], nfds_t nfds, int timeout_ms)
+{
+	fd_set rset, wset, eset;
+	FD_ZERO(&rset);
+	FD_ZERO(&wset);
+	FD_ZERO(&eset);
+
+	int maxfd = -1;
+	for (nfds_t i = 0; i < nfds; ++i) {
+		fds[i].revents = 0;
+		int fd = fds[i].fd;
+		if (fd < 0) {
+			continue;
+		}
+		if (fd >= FD_SETSIZE) {
+			/* Can't select() on this fd; degrade to poll(). */
+			return real_poll(fds, nfds, timeout_ms);
+		}
+		if (fds[i].events & (POLLIN | POLLRDNORM | POLLRDBAND)) {
+			FD_SET(fd, &rset);
+		}
+		if (fds[i].events & (POLLOUT | POLLWRNORM)) {
+			FD_SET(fd, &wset);
+		}
+		if (fds[i].events & POLLPRI) {
+			FD_SET(fd, &eset);
+		}
+		if (fd > maxfd) {
+			maxfd = fd;
+		}
+	}
+
+	struct timeval tv;
+	struct timeval *tvp = NULL;
+	if (timeout_ms >= 0) {
+		tv.tv_sec = timeout_ms / 1000;
+		tv.tv_usec = (timeout_ms % 1000) * 1000;
+		tvp = &tv;
+	}
+
+	int n = select(maxfd + 1, &rset, &wset, &eset, tvp);
+	if (n < 0) {
+		if (errno != EBADF) {
+			return -1;
+		}
+
+		/* Match poll() semantics: report which fds are stale. */
+		int cnt = 0;
+		for (nfds_t i = 0; i < nfds; ++i) {
+			if (fds[i].fd >= 0 &&
+			    real_fcntl(fds[i].fd, F_GETFD) < 0) {
+				fds[i].revents = POLLNVAL;
+				++cnt;
+			}
+		}
+		return cnt;
+	}
+
+	int cnt = 0;
+	for (nfds_t i = 0; i < nfds; ++i) {
+		int fd = fds[i].fd;
+		if (fd < 0) {
+			continue;
+		}
+		if (FD_ISSET(fd, &rset)) {
+			fds[i].revents |= POLLIN;
+		}
+		if (FD_ISSET(fd, &wset)) {
+			fds[i].revents |= POLLOUT;
+		}
+		if (FD_ISSET(fd, &eset)) {
+			fds[i].revents |= POLLPRI;
+		}
+		if (fds[i].revents != 0) {
+			++cnt;
+		}
+	}
+	return cnt;
+}
 
 static errno_t
 compat_ppoll_impl(struct pollfd fds[], nfds_t nfds,
@@ -143,7 +235,8 @@ compat_ppoll_impl(struct pollfd fds[], nfds_t nfds,
 		(void)pthread_sigmask(SIG_SETMASK, sigmask, &origmask);
 	}
 
-	int ready = real_poll(fds2 ? fds2 : fds, nfds + !!(fds2), timeout_ms);
+	int ready = compat_poll_select(fds2 ? fds2 : fds, nfds + !!(fds2),
+	    timeout_ms);
 	ec = ready < 0 ? errno : 0;
 
 	if (sigmask != NULL) {
