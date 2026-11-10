@@ -96,6 +96,7 @@ connector_client(void *arg)
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(1337);
+	addr.sin_len = sizeof(struct sockaddr_in);
 	ATF_REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
 
 	ATF_REQUIRE(
@@ -1167,6 +1168,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__epollout_on_connecting_socket, tcptr)
 			struct sockaddr_in addr = { 0 };
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(1337);
+			addr.sin_len = sizeof(struct sockaddr_in);
 			ATF_REQUIRE(inet_pton(AF_INET, "127.0.0.1", /**/
 					&addr.sin_addr) == 1);
 
@@ -1356,7 +1358,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__epollpri_oobinline, tcptr)
 	ATF_REQUIRE(send(fds[1], &c, 1, MSG_OOB) == 1);
 
 	usleep(200000);
-	ATF_REQUIRE(epoll_wait(ep, &event, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event, 1, 5000) == 1);
 	ATF_REQUIRE(event.events == (EPOLLIN | EPOLLPRI));
 	ATF_REQUIRE(epoll_wait(ep, &event, 1, 0) == 0);
 
@@ -1366,7 +1368,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__epollpri_oobinline, tcptr)
 	ATF_REQUIRE(recv(fds[0], &c, 1, 0) == 1);
 	ATF_REQUIRE(c == 'o');
 
-	ATF_REQUIRE(epoll_wait(ep, &event, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event, 1, 5000) == 1);
 	ATF_REQUIRE(event.events == EPOLLIN);
 	ATF_REQUIRE(epoll_wait(ep, &event, 1, 0) == 0);
 
@@ -1416,11 +1418,11 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__epollpri_oobinline_lt, tcptr)
 	char c = 'o';
 	ATF_REQUIRE(send(fds[1], &c, 1, MSG_OOB) == 1);
 
-	ATF_REQUIRE(epoll_wait(ep, &event, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event, 1, 5000) == 1);
 	ATF_REQUIRE(event.events == EPOLLPRI);
-	ATF_REQUIRE(epoll_wait(ep, &event, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event, 1, 5000) == 1);
 	ATF_REQUIRE(event.events == EPOLLPRI);
-	ATF_REQUIRE(epoll_wait(ep, &event, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event, 1, 5000) == 1);
 	ATF_REQUIRE(event.events == EPOLLPRI);
 
 	ATF_REQUIRE(recv(fds[0], &c, 1, 0) == 1);
@@ -1460,6 +1462,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__timeout_on_listening_socket, tcptr)
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(1337);
+	addr.sin_len = sizeof(struct sockaddr_in);
 	ATF_REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
 
 	ATF_REQUIRE(bind(sock, /**/
@@ -1665,6 +1668,7 @@ datagram_connector(void *arg)
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(1337);
+	addr.sin_len = sizeof(struct sockaddr_in);
 	ATF_REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
 
 	ATF_REQUIRE(
@@ -1700,6 +1704,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__datagram_connection, tcptr)
 	struct sockaddr_in addr = { 0 };
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(1337);
+	addr.sin_len = sizeof(struct sockaddr_in);
 	ATF_REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
 
 	ATF_REQUIRE(bind(sock, /**/
@@ -1718,7 +1723,7 @@ ATF_TC_BODY_FD_LEAKCHECK(epoll__datagram_connection, tcptr)
 	ATF_REQUIRE(epoll_ctl(ep, EPOLL_CTL_ADD, fds[0], &event) == 0);
 
 	struct epoll_event event_result;
-	ATF_REQUIRE(epoll_wait(ep, &event_result, 1, -1) == 1);
+	ATF_REQUIRE(epoll_wait(ep, &event_result, 1, 5000) == 1);
 
 	fprintf(stderr, "got event: %x %d\n", (int)event_result.events,
 	    (int)event_result.events);

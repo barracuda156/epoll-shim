@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -343,6 +344,9 @@ microatf_fail_require(char const *msg, ...)
 		    "expected_failure", -1, msg, args);
 		va_end(args);
 
+		if (errno) {
+			perror("errno:");
+		}
 		microatf_context_exit(context, EXIT_SUCCESS);
 	} else if (context->expect == MICROATF_EXPECT_PASS) {
 		va_list args;
@@ -351,6 +355,9 @@ microatf_fail_require(char const *msg, ...)
 		    "failed", -1, msg, args);
 		va_end(args);
 
+		if (errno) {
+			perror("errno:");
+		}
 		microatf_context_exit(context, EXIT_FAILURE);
 	} else {
 		va_list args;
@@ -362,6 +369,9 @@ microatf_fail_require(char const *msg, ...)
 		    "Test case raised a failure but was not expecting one");
 		va_end(args);
 
+		if (errno) {
+			perror("errno:");
+		}
 		microatf_context_exit(context, EXIT_FAILURE);
 	}
 }
